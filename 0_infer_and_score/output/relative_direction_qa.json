@@ -1,0 +1,66 @@
+{
+  "video_id": "video_001",
+  "video_path": "videos/001.mp4",
+  "qa_pairs": [
+    {
+      "question_id": "q_001a",
+      "question": "If I am standing by the basket and facing the chair, is the couch to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. back-left', 'B. front-left', 'C. back-right', 'D. front-right']",
+      "answer": "B",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001b",
+      "question": "If I am standing by the heater and facing the chair, is the chair to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. back-right', 'B. front-left', 'C. front-right', 'D. back-left']",
+      "answer": "B",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001c",
+      "question": "If I am standing by the window and facing the heater, is the chair to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. back-right', 'B. front-left', 'C. back-left', 'D. front-right']",
+      "answer": "D",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001d",
+      "question": "If I am standing by the plant and facing the bedstool, is the chair to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. back-right', 'B. back-left', 'C. front-left', 'D. front-right']",
+      "answer": "A",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001e",
+      "question": "If I am standing by the fan and facing the bed, is the shoesrack to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. front-right', 'B. back-left', 'C. back-right', 'D. front-left']",
+      "answer": "D",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001f",
+      "question": "If I am standing by the backpack and facing the plant, is the basket to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. front-right', 'B. front-left', 'C. back-right', 'D. back-left']",
+      "answer": "C",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001g",
+      "question": "If I am standing by the chair and facing the night stand, is the chair to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. front-left', 'B. back-right', 'C. back-left', 'D. front-right']",
+      "answer": "D",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001h",
+      "question": "If I am standing by the shoesrack and facing the couch, is the standing lamp to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. front-right', 'B. front-left', 'C. back-right', 'D. back-left']",
+      "answer": "C",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001i",
+      "question": "If I am standing by the coatrack and facing the bed, is the suitcase to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. back-left', 'B. front-right', 'C. back-right', 'D. front-left']",
+      "answer": "D",
+      "question_type": "c_relative_direction"
+    },
+    {
+      "question_id": "q_001j",
+      "question": "If I am standing by the chair and facing the backpack, is the bed to my front-left, front-right, back-left, or back-right? The directions refer to the quadrants of a Cartesian plane (if I am standing at the origin and facing along the positive y-axis).['A. front-right', 'B. back-left', 'C. back-right', 'D. front-left']",
+      "answer": "A",
+      "question_type": "c_relative_direction"
+    }
+  ]
+}

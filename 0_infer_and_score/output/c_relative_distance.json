@@ -1,0 +1,66 @@
+{
+  "video_id": "video_001",
+  "video_path": "videos/001.mp4",
+  "qa_pairs": [
+    {
+      "question_id": "q_reldist_a",
+      "question": "Measuring from the closest point of each object, which of these objects (window, chair, heater, or suitcase) is the closest to the standing lamp?['A. window', 'B. chair', 'C. heater', 'D. suitcase']",
+      "answer": "B",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_b",
+      "question": "Measuring from the closest point of each object, which of these objects (basket, bedstool, plant, or couch) is the closest to the shoesrack?['A. basket', 'B. bedstool', 'C. plant', 'D. couch']",
+      "answer": "C",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_c",
+      "question": "Measuring from the closest point of each object, which of these objects (couch, plant, bed, or chair) is the closest to the standing lamp?['A. couch', 'B. plant', 'C. bed', 'D. chair']",
+      "answer": "D",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_d",
+      "question": "Measuring from the closest point of each object, which of these objects (plant, heater, sidetable, or fan) is the closest to the bed?['A. plant', 'B. heater', 'C. sidetable', 'D. fan']",
+      "answer": "B",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_e",
+      "question": "Measuring from the closest point of each object, which of these objects (shoesrack, bed, basket, or night stand) is the closest to the plant?['A. shoesrack', 'B. bed', 'C. basket', 'D. night stand']",
+      "answer": "D",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_f",
+      "question": "Measuring from the closest point of each object, which of these objects (heater, fan, plant, or standing lamp) is the closest to the coatrack?['A. heater', 'B. fan', 'C. plant', 'D. standing lamp']",
+      "answer": "C",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_g",
+      "question": "Measuring from the closest point of each object, which of these objects (standing lamp, fan, plant, or bed) is the closest to the window?['A. standing lamp', 'B. fan', 'C. plant', 'D. bed']",
+      "answer": "C",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_h",
+      "question": "Measuring from the closest point of each object, which of these objects (basket, bedstool, couch, or heater) is the closest to the bed?['A. basket', 'B. bedstool', 'C. couch', 'D. heater']",
+      "answer": "D",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_i",
+      "question": "Measuring from the closest point of each object, which of these objects (fan, shoesrack, couch, or basket) is the closest to the plant?['A. fan', 'B. shoesrack', 'C. couch', 'D. basket']",
+      "answer": "B",
+      "question_type": "c_relative_distance"
+    },
+    {
+      "question_id": "q_reldist_j",
+      "question": "Measuring from the closest point of each object, which of these objects (shoesrack, fan, coatrack, or sidetable) is the closest to the standing lamp?['A. shoesrack', 'B. fan', 'C. coatrack', 'D. sidetable']",
+      "answer": "B",
+      "question_type": "c_relative_distance"
+    }
+  ]
+}
