@@ -1,244 +1,289 @@
+import pandas as pd
 import os
 import json
-import random
-import pandas as pd
+from pathlib import Path
 
-"""
-统一从各模块 output CSV 抽样问答并分别生成 JSON：
- - m_absolute_distance_tool/output/absolute_distances_all.csv => m_absolute_distance.json
- - m_object_size_tool/output/object_size_all.csv => m_object_size.json
- - m_room_size_tool/output/room_size_all.csv => m_room_size.json （若不存在则跳过）
- - c_object_count_tool/output/object_counts_all.csv => c_object_count.json （若不存在则跳过，注意文件名可能为 object_count_all.csv）
- - c_relative_direction_tool/output/relative_direction_all.csv => c_relative_direction.json
- - c_relative_distance_tool/output/relative_distance_all.csv => c_relative_distance.json
- - c_route_plan_tool/output/route_plan_all.csv => c_route_plan.json
- - s_appearance_order_tool/output/appearance_order_all.csv => s_appearance_order.json
+# 获取数据文件夹名称
+def get_data_folder_name():
+    """
+    从output_csv目录中找到数据文件夹名称
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    output_csv_root = os.path.join(project_root, "output_csv")
+    
+    if os.path.exists(output_csv_root):
+        for item in os.listdir(output_csv_root):
+            item_path = os.path.join(output_csv_root, item)
+            if os.path.isdir(item_path):
+                return item
+    return "default"
 
-可配置项见脚本顶部：视频信息、每模块抽样数量、随机种子。
-"""
+# 输出目录结构为 output_json/数据文件夹名/各部分json文件
+def get_output_dir(data_folder_name):
+    """
+    获取指定数据文件夹下的输出目录（output_json/数据文件夹名），并确保其存在。
+    """
+    output_dir = Path("output_json") / data_folder_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
 
-# ===== 可配置参数 =====
-VIDEO_ID = "video_001"
-VIDEO_PATH = "videos/001.mp4"
-NUM_QA_PER_MODULE = 10
-RANDOM_SEED = 123
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "0_infer_and_score", "output")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-
-def sample_rows(df: pd.DataFrame, k: int, seed: int) -> pd.DataFrame:
-    if df.empty:
-        return df
-    k = min(k, len(df))
-    return df.sample(n=k, random_state=seed)
-
-
-def to_json(video_id: str, video_path: str, qa_pairs: list) -> dict:
-    return {
-        "video_id": video_id,
-        "video_path": video_path,
-        "qa_pairs": qa_pairs,
-    }
-
-
-def make_ids(prefix: str, n: int):
-    return [f"q_{prefix}{chr(ord('a') + i)}" for i in range(n)]
-
+# 定义要处理的CSV文件和对应的JSON输出文件名
+# - output_csv/数据文件夹名称/absolute_distances_all.csv => m_absolute_distance.json
+# - output_csv/数据文件夹名称/object_size_all.csv => m_object_size.json
+# - output_csv/数据文件夹名称/room_size_all.csv => m_room_size.json （若不存在则跳过）
+# - output_csv/数据文件夹名称/object_count_all.csv => c_object_count.json （若不存在则跳过）
+# - output_csv/数据文件夹名称/relative_direction_all.csv => c_relative_direction.json
+# - output_csv/数据文件夹名称/relative_distance_all.csv => c_relative_distance.json
+# - output_csv/数据文件夹名称/route_plan_all.csv => c_route_plan.json
+# - output_csv/数据文件夹名称/appearance_order_all.csv => s_appearance_order.json
 
 def process_absolute_distance():
-    path = os.path.join(PROJECT_ROOT, "m_absolute_distance_tool", "output", "absolute_distances_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna()]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("abs_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        qa.append({
-            "question_id": qid,
-            "question": str(row["Question"]).strip(),
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "m_absolute_distance",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理绝对距离数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/absolute_distances_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,  # 使用数据文件夹名称
+            "video_path": f"output_video/{data_folder_name}.mp4",  # 使用对应的视频路径
+            "category": "absolute_distance",
+            "question_id": f"abs_dist_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "object1": row.get('Object1', ''),
+                "object2": row.get('Object2', ''),
+                "distance": row.get('Distance', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_object_size():
-    path = os.path.join(PROJECT_ROOT, "m_object_size_tool", "output", "object_size_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna()]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("size_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        qa.append({
-            "question_id": qid,
-            "question": str(row["Question"]).strip(),
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "m_object_size",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理对象尺寸数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/object_size_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "object_size",
+            "question_id": f"obj_size_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "actor_name": row.get('ActorName', ''),
+                "longest_dimension": row.get('LongestDimension', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_room_size():
-    path = os.path.join(PROJECT_ROOT, "m_room_size_tool", "output", "room_size_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna()]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("room_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        qa.append({
-            "question_id": qid,
-            "question": str(row["Question"]).strip(),
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "m_room_size",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理房间尺寸数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/room_size_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "room_size",
+            "question_id": f"room_size_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "room_width": row.get('RoomWidth', ''),
+                "room_length": row.get('RoomLength', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_object_count():
-    # 文件名可能为 object_counts_all.csv 或 object_count_all.csv（脚本写入为 object_counts_all.csv）
-    p1 = os.path.join(PROJECT_ROOT, "c_object_count_tool", "output", "object_counts_all.csv")
-    p2 = os.path.join(PROJECT_ROOT, "c_object_count_tool", "output", "object_count_all.csv")
-    path = p1 if os.path.exists(p1) else (p2 if os.path.exists(p2) else None)
-    if not path:
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna()]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("count_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        qa.append({
-            "question_id": qid,
-            "question": str(row["Question"]).strip(),
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "c_object_count",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理对象计数数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/object_count_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "object_count",
+            "question_id": f"obj_count_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "object_type": row.get('ObjectType', ''),
+                "count": row.get('Count', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_relative_direction():
-    path = os.path.join(PROJECT_ROOT, "c_relative_direction_tool", "output", "relative_direction_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["QuestionHard", "AnswerHard", "OptionsHard"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["QuestionHard"].notna() & df["AnswerHard"].notna() & df["OptionsHard"].notna() & (df["OptionsHard"].astype(str).str.strip() != "[]")]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("reldir_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        q = str(row["QuestionHard"]).strip() + str(row["OptionsHard"]).strip()
-        qa.append({
-            "question_id": qid,
-            "question": q,
-            "answer": str(row["AnswerHard"]).strip(),
-            "question_type": "c_relative_direction",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理相对方向数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/relative_direction_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "relative_direction",
+            "question_id": f"rel_dir_{index + 1}",
+            "question": row.get('QuestionHard', ''),  # 使用Hard难度的问题
+            "answer": row.get('AnswerHard', ''),
+            "metadata": {
+                "object1": row.get('Object1', ''),
+                "object2": row.get('Object2', ''),
+                "direction": row.get('Direction', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_relative_distance():
-    path = os.path.join(PROJECT_ROOT, "c_relative_distance_tool", "output", "relative_distance_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer", "Options"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna() & df["Options"].notna() & (df["Options"].astype(str).str.strip() != "[]")]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("reldist_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        q = str(row["Question"]).strip() + str(row["Options"]).strip()
-        qa.append({
-            "question_id": qid,
-            "question": q,
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "c_relative_distance",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理相对距离数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/relative_distance_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "relative_distance",
+            "question_id": f"rel_dist_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "object1": row.get('Object1', ''),
+                "object2": row.get('Object2', ''),
+                "distance": row.get('Distance', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_route_plan():
-    path = os.path.join(PROJECT_ROOT, "c_route_plan_tool", "output", "route_plan_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer", "Options"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna() & df["Options"].notna() & (df["Options"].astype(str).str.strip() != "[]")]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("route_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        q = str(row["Question"]).strip() + str(row["Options"]).strip()
-        qa.append({
-            "question_id": qid,
-            "question": q,
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "c_route_plan",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
+    """处理路径规划数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/route_plan_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "route_plan",
+            "question_id": f"route_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "start_point": row.get('StartPoint', ''),
+                "end_point": row.get('EndPoint', ''),
+                "turn_direction": row.get('TurnDirection', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def process_appearance_order():
-    path = os.path.join(PROJECT_ROOT, "s_appearance_order_tool", "output", "appearance_order_all.csv")
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    required = ["Question", "Answer", "Options"]
-    if not all(c in df.columns for c in required):
-        return None
-    df = df[df["Question"].notna() & df["Answer"].notna() & df["Options"].notna() & (df["Options"].astype(str).str.strip() != "[]")]
-    df_s = sample_rows(df, NUM_QA_PER_MODULE, RANDOM_SEED)
-    ids = make_ids("appear_", len(df_s))
-    qa = []
-    for (i, row), qid in zip(df_s.iterrows(), ids):
-        q = str(row["Question"]).strip() + str(row["Options"]).strip()
-        qa.append({
-            "question_id": qid,
-            "question": q,
-            "answer": str(row["Answer"]).strip(),
-            "question_type": "s_appearance_order",
-        })
-    return to_json(VIDEO_ID, VIDEO_PATH, qa)
-
-
-def save_json(obj: dict, filename: str):
-    path = os.path.join(OUTPUT_DIR, filename)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-    print(f"已生成：{path}")
-
+    """处理出现顺序数据"""
+    data_folder_name = get_data_folder_name()
+    csv_path = f"output_csv/{data_folder_name}/appearance_order_all.csv"
+    if not os.path.exists(csv_path):
+        print(f"文件不存在: {csv_path}")
+        return []
+    
+    df = pd.read_csv(csv_path)
+    qa_pairs = []
+    
+    for index, row in df.iterrows():
+        qa_pair = {
+            "video_id": data_folder_name,
+            "video_path": f"output_video/{data_folder_name}.mp4",
+            "category": "appearance_order",
+            "question_id": f"app_order_{index + 1}",
+            "question": row.get('Question', ''),
+            "answer": row.get('Answer', ''),
+            "metadata": {
+                "object_name": row.get('ObjectName', ''),
+                "appearance_order": row.get('AppearanceOrder', ''),
+                "first_frame": row.get('FirstFrame', ''),
+                "possibility": row.get('Possibility', '')
+            }
+        }
+        qa_pairs.append(qa_pair)
+    
+    return qa_pairs
 
 def main():
-    makers = [
+    print("开始处理所有输出文件...")
+    
+    # 获取数据文件夹名称和输出目录
+    data_folder_name = get_data_folder_name()
+    OUTPUT_DIR = get_output_dir(data_folder_name)
+    
+    # 定义处理函数和对应的输出文件名
+    processors = [
         (process_absolute_distance, "m_absolute_distance.json"),
         (process_object_size, "m_object_size.json"),
         (process_room_size, "m_room_size.json"),
@@ -248,16 +293,25 @@ def main():
         (process_route_plan, "c_route_plan.json"),
         (process_appearance_order, "s_appearance_order.json"),
     ]
-    for maker, filename in makers:
-        try:
-            data = maker()
-            if data and data.get("qa_pairs"):
-                save_json(data, filename)
-            else:
-                print(f"跳过：{filename}（无数据或文件不存在）")
-        except Exception as e:
-            print(f"生成 {filename} 失败：{e}")
-
+    
+    total_qa_pairs = 0
+    
+    for processor, output_filename in processors:
+        print(f"\n处理 {output_filename}...")
+        qa_pairs = processor()
+        
+        if qa_pairs:
+            output_path = OUTPUT_DIR / output_filename
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(qa_pairs, f, indent=2, ensure_ascii=False)
+            
+            print(f"✅ 生成 {len(qa_pairs)} 个QA pairs -> {output_path}")
+            total_qa_pairs += len(qa_pairs)
+        else:
+            print(f"⚠️  跳过 {output_filename} (无数据)")
+    
+    print(f"\n🎉 处理完成！总共生成 {total_qa_pairs} 个QA pairs")
+    print(f"输出目录: {OUTPUT_DIR}")
 
 if __name__ == "__main__":
     main()

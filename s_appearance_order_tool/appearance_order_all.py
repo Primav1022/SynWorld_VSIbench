@@ -3,9 +3,27 @@ import os
 import random
 from itertools import combinations, permutations # Import permutations
 
+def get_data_folder_name():
+    """
+    从output_csv目录中找到数据文件夹名称
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    output_csv_root = os.path.join(project_root, "output_csv")
+    
+    if os.path.exists(output_csv_root):
+        for item in os.listdir(output_csv_root):
+            item_path = os.path.join(output_csv_root, item)
+            if os.path.isdir(item_path):
+                return item
+    return "default"
+
 def ensure_output_directory():
     """Create output directory if it doesn't exist"""
-    output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    data_folder_name = get_data_folder_name()
+    output_dir = os.path.join(project_root, "output_csv", data_folder_name)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     return output_dir
@@ -14,11 +32,26 @@ def main():
     # Read the CSV file using relative path
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)  # Assumes this script is one level down from project root
-    input_csv_path = os.path.join(project_root, '0_data_cleanup_tool', 'output', 'ranked_unique_actor_anno.csv')
+    
+    # 修改输入路径以读取新的CSV文件位置
+    data_folder_name = get_data_folder_name()
+    input_csv_path = os.path.join(project_root, 'output_csv', data_folder_name, 'ranked_unique_actor_anno.csv')
+    
+    if not os.path.exists(input_csv_path):
+        print(f"Error: Input CSV file not found at {input_csv_path}")
+        return
+        
     df = pd.read_csv(input_csv_path)
 
     # Get unique actor names
     actor_names = df['ActorName'].unique()
+    print(f"Found {len(actor_names)} unique actors")
+    
+    # Check if we have enough actors for combinations of 4
+    if len(actor_names) < 4:
+        print(f"Error: Need at least 4 actors, but only found {len(actor_names)}")
+        return
+    
     output_dir = ensure_output_directory()
     
     # Process all combinations of 4 different actors
@@ -43,19 +76,6 @@ def main():
             # Sort actors by FirstFrame to determine appearance order
             actor_data.sort(key=lambda x: x['FirstFrame'])
             
-        # --- Ambiguity Check ---
-            is_ambiguous = False
-            for i in range(len(actor_data) - 1):
-                frame_diff = actor_data[i+1]['FirstFrame'] - actor_data[i]['FirstFrame']
-                if frame_diff < 10:
-                    is_ambiguous = True
-                    break
-            
-            if is_ambiguous:
-                # print(f"Skipping ambiguous combination {possibility_counter} due to close timestamps: {[ad['FirstFrame'] for ad in actor_data]}")
-                continue # Discard this combination
-            # --- End Ambiguity Check ---
-
             # Create randomized order for question (different from correct order)
             question_order = actor_data.copy()
             while question_order == actor_data:  # Ensure the order is different
@@ -117,11 +137,17 @@ def main():
             print(f"Error message: {str(e)}")
             continue
     
+    print(f"Total combinations processed: {len(all_results)}")
+    
     # Save all results to CSV
     if all_results:
         output_df = pd.DataFrame(all_results)
-        output_df.to_csv(os.path.join(output_dir, 'appearance_order_all.csv'), index=False)
+        output_csv_path = os.path.join(output_dir, 'appearance_order_all.csv')
+        output_df.to_csv(output_csv_path, index=False)
         print(f"Successfully processed {len(all_results)} possibility")
+        print(f"Output saved to: {output_csv_path}")
+    else:
+        print("No valid combinations found.")
 
 if __name__ == "__main__":
     main()

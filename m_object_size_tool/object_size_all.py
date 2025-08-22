@@ -2,9 +2,27 @@ import pandas as pd
 import numpy as np
 import os
 
+def get_data_folder_name():
+    """
+    从output_csv目录中找到数据文件夹名称
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    output_csv_root = os.path.join(project_root, "output_csv")
+    
+    if os.path.exists(output_csv_root):
+        for item in os.listdir(output_csv_root):
+            item_path = os.path.join(output_csv_root, item)
+            if os.path.isdir(item_path):
+                return item
+    return "default"
+
 def ensure_output_directory():
     """Create output directory if it doesn't exist"""
-    output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    data_folder_name = get_data_folder_name()
+    output_dir = os.path.join(project_root, "output_csv", data_folder_name)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     return output_dir
@@ -35,8 +53,13 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)  # Assumes this script is one level down from project root
     
-    # Construct path to the CSV file
-    input_csv_path = os.path.join(project_root, '0_data_cleanup_tool', 'output', 'ranked_unique_actor_anno.csv')
+    # 修改输入路径以读取新的CSV文件位置
+    data_folder_name = get_data_folder_name()
+    input_csv_path = os.path.join(project_root, 'output_csv', data_folder_name, 'ranked_unique_actor_anno.csv')
+    
+    if not os.path.exists(input_csv_path):
+        print(f"Error: Input CSV file not found at {input_csv_path}")
+        return
     
     # Read the CSV file
     df = pd.read_csv(input_csv_path)
@@ -88,8 +111,10 @@ def main():
     # Save all results to CSV
     if all_results:
         output_df = pd.DataFrame(all_results)
-        output_df.to_csv(os.path.join(output_dir, 'object_size_all.csv'), index=False)
+        output_csv_path = os.path.join(output_dir, 'object_size_all.csv')
+        output_df.to_csv(output_csv_path, index=False)
         print(f"Successfully processed {len(all_results)} actors")
+        print(f"Output saved to: {output_csv_path}")
         
 if __name__ == "__main__":
     main()

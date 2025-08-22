@@ -38,7 +38,7 @@
 -   `c_route_plan_tool/`: 路径规划与问答生成。
 -   `s_appearance_order_tool/`: 出现顺序分析与可视化。
 -   `0_infer_and_score/`: 用于问答整合、模型推理和评分的占位目录。
--   `run_all.py`: 用于运行整个流程的脚本。
+-   `run_single.py`: 用于运行单个数据文件夹的完整流程脚本。
 
 每个工具目录通常包含一个 `output/` 文件夹，用于存放生成的CSV文件和图像。
 
@@ -195,19 +195,19 @@
 
 2.  **文件路径**: 脚本使用相对路径，以确保在项目结构内的可移植性。
 
-3.  **执行顺序 (`run_all.py`)**:
-    -   `run_all.py` 脚本提供了一种自动执行整个流程的方法。它通常按以下顺序运行：
+3.  **执行顺序 (`run_single.py`)**:
+    -   `run_single.py` 脚本提供了一种自动执行单个数据文件夹完整流程的方法。它通常按以下顺序运行：
         1.  数据清理与丰富化 (`0_data_cleanup_tool/`)
         2.  测量类工具 (`m_*/`)
         3.  比较类工具 (`c_*/`)
         4.  序列类工具 (`s_*/`)
-        5.  可视化脚本 (可选，由 `run_all.py` 中的 `ENABLE_VISUALIZATIONS` 控制)
-        6.  推理脚本 (可选，由 `run_all.py` 中的 `ENABLE_INFERENCE_SCRIPTS` 控制)
+        5.  可视化脚本 (可选，由 `run_single.py` 中的 `ENABLE_VISUALIZATIONS` 控制)
+        6.  推理脚本 (可选，由 `run_single.py` 中的 `ENABLE_INFERENCE_SCRIPTS` 控制)
     -   要运行整个流程：
         ```bash
-        python3 run_all.py
+        python3 run_single.py
         ```
-    -   修改 `run_all.py` 文件顶部的布尔标志（如 `ENABLE_VISUALIZATIONS`, `ENABLE_INFERENCE_SCRIPTS`, `ENABLE_FRAME_EXTRACTION`）来控制可选步骤。
+    -   修改 `run_single.py` 文件顶部的布尔标志（如 `ENABLE_VISUALIZATIONS`, `ENABLE_INFERENCE_SCRIPTS`, `ENABLE_FRAME_EXTRACTION`）来控制可选步骤。
 
 4.  **单独运行脚本**:
     -   进入脚本所在目录，并使用 Python 3 运行它。

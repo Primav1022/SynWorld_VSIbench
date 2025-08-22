@@ -16,7 +16,8 @@ MIN_VOLUME = 0.005   # Minimum volume in cubic meters
 # Input/Output paths
 # 改为在项目根 data/ 目录下查找输入 CSV
 DATA_ROOT = os.path.join(project_root, "data")
-OUTPUT_DATA_ROOT = os.path.join(project_root, "0_data_cleanup_tool", "output")  # Keep output in cleanup tool
+# 修改输出路径到根目录的output_csv/对应数据文件名/
+OUTPUT_DATA_ROOT = os.path.join(project_root, "output_csv")
 
 def _resolve_screenshot_summary_csv(data_subdir: str) -> str:
     """
@@ -44,6 +45,21 @@ def _resolve_screenshot_summary_csv(data_subdir: str) -> str:
             return os.path.join(current_dir, "Screenshot_summary.csv")
 
     return ""
+
+def _get_data_folder_name(data_subdir: str) -> str:
+    """
+    根据data_subdir确定数据文件夹名称，用于输出目录
+    """
+    if data_subdir:
+        return data_subdir
+    else:
+        # 如果没有指定data_subdir，尝试从data目录中找到第一个文件夹
+        if os.path.exists(DATA_ROOT):
+            for item in os.listdir(DATA_ROOT):
+                item_path = os.path.join(DATA_ROOT, item)
+                if os.path.isdir(item_path):
+                    return item
+        return "default"
 
 # --- Add the new function here ---
 def _determine_short_actor_name(actor_name: str, cleaned_actor_name: str) -> str:
@@ -98,15 +114,35 @@ def extract_ranked_actor_info(data_subdir=DEFAULT_DATA_SUBDIRECTORY, min_frame_c
     # Filter actors that appear in more than min_frame_count frames
     qualified_actors = frame_counts[frame_counts['FrameCount'] >= min_frame_count]
 
-    # Get first appearance frame for qualified actors
-    first_appearance = df[df['ActorName'].isin(qualified_actors['ActorName'])]
-    first_appearance = first_appearance.groupby(['ActorName', 'ActorClass'])['FrameNumber'].min().reset_index()
+    # Get first appearance frame for each actor
+    first_appearance = df.groupby(['ActorName', 'ActorClass'])['FrameNumber'].min().reset_index()
     first_appearance = first_appearance.rename(columns={'FrameNumber': 'FirstFrame'})
 
-    # Get unique actor information for qualified actors
-    selected_columns = ['ActorName', 'ActorClass', 'WorldX', 'WorldY', 'WorldZ', 
-                       'WorldSizeX', 'WorldSizeY', 'WorldSizeZ']
-    actor_info = df[df['ActorName'].isin(qualified_actors['ActorName'])][selected_columns].drop_duplicates()
+    # Get world coordinates and sizes for each actor (using the first appearance frame)
+    actor_info = []
+    for _, row in first_appearance.iterrows():
+        actor_name = row['ActorName']
+        actor_class = row['ActorClass']
+        first_frame = row['FirstFrame']
+        
+        # Get the data for this actor from the first frame they appear in
+        frame_data = df[(df['ActorName'] == actor_name) & (df['FrameNumber'] == first_frame)]
+        
+        if not frame_data.empty:
+            actor_row = frame_data.iloc[0]
+            actor_info.append({
+                'ActorName': actor_name,
+                'ActorClass': actor_class,
+                'WorldX': actor_row['WorldX'],
+                'WorldY': actor_row['WorldY'],
+                'WorldZ': actor_row['WorldZ'],
+                'WorldSizeX': actor_row['WorldSizeX'],
+                'WorldSizeY': actor_row['WorldSizeY'],
+                'WorldSizeZ': actor_row['WorldSizeZ'],
+                'ActorDescription': actor_row.get('ActorDescription', '')
+            })
+
+    actor_info = pd.DataFrame(actor_info)
 
     # Convert world coordinates and sizes from centimeters to meters
     # Apply transformation: X -> -X for WorldX
@@ -176,18 +212,23 @@ def extract_ranked_actor_info(data_subdir=DEFAULT_DATA_SUBDIRECTORY, min_frame_c
                     'CamX', 'CamY', 'CamZ', 'CamPitch', 'CamYaw', 'CamRoll']
     merged_info = merged_info[column_order]
 
+    # 确定输出目录
+    data_folder_name = _get_data_folder_name(data_subdir)
+    output_dir = os.path.join(OUTPUT_DATA_ROOT, data_folder_name)
+    
     # Create output directory if it doesn't exist
-    if not os.path.exists(OUTPUT_DATA_ROOT):
-        os.makedirs(OUTPUT_DATA_ROOT)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    # Save to output CSV in the cleanup tool's output directory
-    output_csv = os.path.join(OUTPUT_DATA_ROOT, "ranked_unique_actor_anno.csv")
+    # Save to output CSV in the new directory structure
+    output_csv = os.path.join(output_dir, "ranked_unique_actor_anno.csv")
     merged_info.to_csv(output_csv, index=False)
 
     # print(f"Ranked actor information has been saved to {output_csv}")
     print(f"Unique actors:")
     print(f"1. Appear in {min_frame_count} or more frames")
     print(f"2. Have a volume greater than {min_volume} cubic meters")
+    print(f"Output saved to: {output_csv}")
     # print("Note: All world coordinates and sizes have been converted from centimeters to meters")
     # print("Note: Camera position data (CamX, CamY, CamZ) has also been converted to meters")
 
