@@ -2,6 +2,7 @@ import os
 import json
 import pandas as pd
 from pathlib import Path
+from ast import literal_eval
 
 class SimplifiedVQADatasetGenerator:
     def __init__(self, output_csv_root: str = "output_csv", output_json_root: str = "output_json"):
@@ -22,17 +23,46 @@ class SimplifiedVQADatasetGenerator:
             "appearance_order_all.csv": "s_appearance_order"
         }
         
-        # 定义难度标签映射
+        # 仅对需要的题型保留难度
         self.difficulty_mapping = {
-            "m_absolute_distance": "medium",
-            "m_object_size": "medium",
-            "m_room_size": "medium", 
-            "c_object_count": "easy",
-            "c_relative_direction": "hard",  # 这个有多个难度层次
-            "c_relative_distance": "medium",
-            "c_route_plan": "hard",
-            "s_appearance_order": "medium"
+            "c_relative_direction": "hard",  # 该类会由专门方法细分三档
+            "c_route_plan": "hard"
         }
+        self.categories_with_difficulty = {"c_relative_direction", "c_route_plan"}
+
+    def _parse_options(self, raw_val):
+        """将CSV中的Options字段解析为列表。支持list对象或字符串形式。"""
+        if raw_val is None or (isinstance(raw_val, float) and pd.isna(raw_val)):
+            return None
+        if isinstance(raw_val, list):
+            return raw_val if len(raw_val) > 0 else None
+        s = str(raw_val).strip()
+        if not s:
+            return None
+        # 常见情况："['A. xxx', 'B. yyy']" -> 使用literal_eval安全解析
+        try:
+            parsed = literal_eval(s)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                return parsed
+        except Exception:
+            pass
+        # 若是以分隔符拼接的字符串，尝试用 ' ; ' 或 ',' 拆分
+        if ";" in s:
+            parts = [p.strip() for p in s.split(";") if p.strip()]
+            return parts if parts else None
+        if "," in s and s.count(".") >= 2:
+            parts = [p.strip() for p in s.split(",") if p.strip()]
+            return parts if parts else None
+        return None
+
+    def _merge_options_into_question(self, question: str, options_list) -> str:
+        """将选项合并到问题末尾，格式：Question + 空格 + 'A. xxx B. yyy ...'"""
+        if not options_list:
+            return question
+        opts = [str(o).strip() for o in options_list if str(o).strip()]
+        if not opts:
+            return question
+        return f"{question} {' '.join(opts)}"
 
     def get_data_folders(self) -> list:
         """获取所有数据文件夹"""
@@ -73,9 +103,18 @@ class SimplifiedVQADatasetGenerator:
                     "video_path": f"output_video/{folder_name}.mp4",
                     "question": row.get('Question', ''),
                     "answer": row.get('Answer', ''),
-                    "question_type": category,
-                    "difficulty": self.difficulty_mapping.get(category, "medium")
+                    "question_type": category
                 }
+                # 仅指定题型保留难度
+                if category in self.categories_with_difficulty:
+                    default_diff = self.difficulty_mapping.get(category)
+                    if default_diff:
+                        qa_pair["difficulty"] = default_diff
+                # 若存在通用 Options 列则合并到 question
+                if 'Options' in row and pd.notna(row.get('Options')):
+                    options = self._parse_options(row.get('Options'))
+                    if options:
+                        qa_pair['question'] = self._merge_options_into_question(qa_pair['question'], options)
                 qa_pairs.append(qa_pair)
         
         return qa_pairs
@@ -95,6 +134,10 @@ class SimplifiedVQADatasetGenerator:
                     "question_type": "c_relative_direction",
                     "difficulty": "hard"
                 }
+                if pd.notna(row.get('OptionsHard')):
+                    options = self._parse_options(row.get('OptionsHard'))
+                    if options:
+                        qa_pair['question'] = self._merge_options_into_question(qa_pair['question'], options)
                 qa_pairs.append(qa_pair)
             
             # 处理Medium难度
@@ -107,6 +150,10 @@ class SimplifiedVQADatasetGenerator:
                     "question_type": "c_relative_direction",
                     "difficulty": "medium"
                 }
+                if pd.notna(row.get('OptionsMedium')):
+                    options = self._parse_options(row.get('OptionsMedium'))
+                    if options:
+                        qa_pair['question'] = self._merge_options_into_question(qa_pair['question'], options)
                 qa_pairs.append(qa_pair)
             
             # 处理Easy难度
@@ -119,6 +166,10 @@ class SimplifiedVQADatasetGenerator:
                     "question_type": "c_relative_direction",
                     "difficulty": "easy"
                 }
+                if pd.notna(row.get('OptionsEasy')):
+                    options = self._parse_options(row.get('OptionsEasy'))
+                    if options:
+                        qa_pair['question'] = self._merge_options_into_question(qa_pair['question'], options)
                 qa_pairs.append(qa_pair)
         
         return qa_pairs
@@ -138,9 +189,12 @@ class SimplifiedVQADatasetGenerator:
                     "video_path": f"output_video/{folder_name}.mp4",
                     "question": question,
                     "answer": answer,
-                    "question_type": "s_appearance_order",
-                    "difficulty": "medium"
+                    "question_type": "s_appearance_order"
                 }
+                if 'Options' in row and pd.notna(row.get('Options')):
+                    options = self._parse_options(row.get('Options'))
+                    if options:
+                        qa_pair['question'] = self._merge_options_into_question(qa_pair['question'], options)
                 qa_pairs.append(qa_pair)
         
         return qa_pairs
@@ -171,10 +225,11 @@ class SimplifiedVQADatasetGenerator:
             "by_category": {}
         }
         
-        # 按难度统计
+        # 按难度统计（仅统计带有难度键的题目）
         for qa_pair in all_qa_pairs:
-            difficulty = qa_pair.get("difficulty", "unknown")
-            statistics["by_difficulty"][difficulty] = statistics["by_difficulty"].get(difficulty, 0) + 1
+            if "difficulty" in qa_pair:
+                difficulty = qa_pair["difficulty"]
+                statistics["by_difficulty"][difficulty] = statistics["by_difficulty"].get(difficulty, 0) + 1
         
         # 按类别统计
         for qa_pair in all_qa_pairs:

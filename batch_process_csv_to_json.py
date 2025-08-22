@@ -11,13 +11,14 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
+import json
 
 class BatchProcessor:
     def __init__(self, data_root: str, parallel: int = 1):
         self.data_root = Path(data_root)
-        self.parallel = parallel
+        # 串行处理，不再使用并行
+        self.parallel = 1
         self.project_root = Path(__file__).parent
         
         # 定义需要运行的脚本列表
@@ -49,17 +50,23 @@ class BatchProcessor:
     def get_data_folders(self) -> list:
         """获取所有数据文件夹"""
         if not self.data_root.exists():
-            print(f"Error: Data root directory not found: {self.data_root}")
+            print(f"[404] 数据根目录不存在(Data root not found): {self.data_root}")
             return []
         
         folders = []
-        for item in self.data_root.iterdir():
+        try:
+            items = list(self.data_root.iterdir())
+        except Exception as e:
+            print(f"[405] 无法读取数据根目录内容(Cannot list directory): {self.data_root} -> {e}")
+            return []
+        
+        for item in items:
             if item.is_dir():
                 # 检查是否包含必要的文件
                 if self._has_required_files(item):
                     folders.append(item.name)
                 else:
-                    print(f"Warning: Skipping {item.name} - missing required files")
+                    print(f"[403] 跳过 {item.name}：缺少必要文件(Screenshot_summary.csv)")
         
         return folders
 
@@ -68,7 +75,13 @@ class BatchProcessor:
         required_files = ["Screenshot_summary.csv"]
         
         for file_name in required_files:
-            if not (folder_path / file_name).exists():
+            p = folder_path / file_name
+            try:
+                if not p.exists():
+                    print(f"[406] 必需文件缺失(Missing): {p}")
+                    return False
+            except Exception as e:
+                print(f"[407] 无法访问必需文件(Cannot access): {p} -> {e}")
                 return False
         
         return True
@@ -113,7 +126,8 @@ class BatchProcessor:
 
     def process_single_folder(self, data_folder: str) -> dict:
         """处理单个数据文件夹"""
-        print(f"\nProcessing folder: {data_folder}")
+        print(f"\n====================")
+        print(f"开始处理数据包: {data_folder} (Processing folder)")
         start_time = time.time()
         
         results = {
@@ -124,30 +138,46 @@ class BatchProcessor:
             "errors": []
         }
         
-        # 按依赖顺序运行脚本
-        for script in self.processing_scripts:
-            # 检查依赖
-            dependencies = self.dependencies.get(script, [])
-            for dep in dependencies:
-                if not self._check_dependency_success(dep, data_folder):
-                    error_msg = f"Dependency failed: {dep}"
-                    results["errors"].append(error_msg)
-                    results["success"] = False
-                    break
-            else:
-                # 所有依赖都成功，运行当前脚本
-                if self.run_script(script, data_folder):
-                    results["scripts_run"] += 1
-                else:
-                    results["scripts_failed"] += 1
-                    results["errors"].append(f"Script failed: {script}")
-                    # 对于关键脚本，如果失败就停止处理
-                    if script in ["0_data_cleanup_tool/anno_extraction.py"]:
+        # 最多尝试两轮：首轮 + 失败/不完整时重试一轮
+        max_attempts = 2
+        attempt = 1
+        while attempt <= max_attempts:
+            if attempt > 1:
+                print(f"重试第 {attempt} 次: {data_folder} ... (Retry)")
+            
+            round_success = True
+            # 按依赖顺序运行脚本
+            for script in self.processing_scripts:
+                print(f"  -> 正在执行脚本: {script}")
+                dependencies = self.dependencies.get(script, [])
+                for dep in dependencies:
+                    if not self._check_dependency_success(dep, data_folder):
+                        error_msg = f"依赖未满足(Dependency failed): {dep}"
+                        print(f"     !! {error_msg}")
+                        results["errors"].append(error_msg)
                         results["success"] = False
+                        round_success = False
                         break
+                else:
+                    if self.run_script(script, data_folder):
+                        results["scripts_run"] += 1
+                    else:
+                        results["scripts_failed"] += 1
+                        err = f"脚本失败(Script failed): {script}"
+                        print(f"     !! {err}")
+                        results["errors"].append(err)
+                        if script in ["0_data_cleanup_tool/anno_extraction.py"]:
+                            results["success"] = False
+                            round_success = False
+                            break
+                if not round_success:
+                    break
+
+            if not round_success:
+                attempt += 1
+                continue
         
-        # 生成JSON文件
-        if results["success"]:
+            # 生成JSON文件
             try:
                 json_result = subprocess.run(
                     [sys.executable, "create_simplified_vqa_dataset.py"],
@@ -158,18 +188,32 @@ class BatchProcessor:
                 )
                 
                 if json_result.returncode == 0:
-                    print(f"✓ Generated JSON for {data_folder}")
+                    print(f"✓ 已生成JSON: {data_folder} (Generated)")
                 else:
-                    print(f"✗ Failed to generate JSON for {data_folder}")
+                    print(f"✗ 生成JSON失败(Failed) -> {data_folder}")
                     results["errors"].append("JSON generation failed")
+                    round_success = False
             except Exception as e:
-                print(f"✗ JSON generation error for {data_folder}: {str(e)}")
+                print(f"✗ 生成JSON异常(Error) {data_folder}: {str(e)}")
                 results["errors"].append(f"JSON generation error: {str(e)}")
-        
+                round_success = False
+
+            # 检查输出完整性
+            if round_success:
+                if not self._verify_outputs(data_folder):
+                    print(f"!! 输出不完整(Incomplete) -> {data_folder}，将重试…")
+                    round_success = False
+                else:
+                    print(f"✓ 输出校验通过(Verified) -> {data_folder}")
+
+            if round_success:
+                break
+            attempt += 1
+
         elapsed_time = time.time() - start_time
         results["elapsed_time"] = elapsed_time
         
-        print(f"Completed {data_folder} in {elapsed_time:.2f}s")
+        print(f"完成数据包: {data_folder}，耗时 {elapsed_time:.2f}s (Completed)")
         return results
 
     def _check_dependency_success(self, script: str, data_folder: str) -> bool:
@@ -179,49 +223,85 @@ class BatchProcessor:
         return True
 
     def process_all_folders(self) -> list:
-        """处理所有数据文件夹"""
+        """处理所有数据文件夹（串行）"""
         data_folders = self.get_data_folders()
         
         if not data_folders:
             print("No data folders found to process")
             return []
         
-        print(f"Found {len(data_folders)} data folders to process: {data_folders}")
-        
+        print(f"发现 {len(data_folders)} 个数据包(Found): {data_folders}")
         all_results = []
-        
-        if self.parallel == 1:
-            # 串行处理
-            for data_folder in data_folders:
-                result = self.process_single_folder(data_folder)
-                all_results.append(result)
-        else:
-            # 并行处理
-            with ProcessPoolExecutor(max_workers=self.parallel) as executor:
-                # 提交所有任务
-                future_to_folder = {
-                    executor.submit(self.process_single_folder, folder): folder 
-                    for folder in data_folders
-                }
-                
-                # 收集结果
-                for future in as_completed(future_to_folder):
-                    folder = future_to_folder[future]
-                    try:
-                        result = future.result()
-                        all_results.append(result)
-                    except Exception as e:
-                        print(f"Error processing {folder}: {str(e)}")
-                        all_results.append({
-                            "folder": folder,
-                            "success": False,
-                            "scripts_run": 0,
-                            "scripts_failed": 0,
-                            "errors": [str(e)],
-                            "elapsed_time": 0
-                        })
+        for data_folder in data_folders:
+            result = self.process_single_folder(data_folder)
+            all_results.append(result)
         
         return all_results
+
+    def _verify_outputs(self, data_folder: str) -> bool:
+        """校验当前数据包的输出完整性：CSV 是否齐全且非空，JSON 是否存在且包含 qa_pairs。"""
+        required_csv = [
+            "ranked_unique_actor_anno.csv",
+            "absolute_distances_all.csv",
+            "object_size_all.csv",
+            "room_size_all.csv",
+            "object_count_all.csv",
+            "relative_direction_all.csv",
+            "relative_distance_all.csv",
+            "route_plan_all.csv",
+            "appearance_order_all.csv",
+        ]
+        csv_root = self.project_root / "output_csv" / data_folder
+        ok = True
+        # 目录检查
+        try:
+            if not csv_root.exists():
+                print(f"  [404] 输出目录不存在(Output folder not found): {csv_root}")
+                ok = False
+        except Exception as e:
+            print(f"  [405] 无法访问输出目录(Cannot access folder): {csv_root} -> {e}")
+            ok = False
+        
+        for name in required_csv:
+            path = csv_root / name
+            try:
+                if not path.exists():
+                    print(f"  [404] CSV 不存在(Not found): {path}")
+                    ok = False
+                else:
+                    try:
+                        size = path.stat().st_size
+                        if size <= 0:
+                            print(f"  [405] CSV 大小为0(Unreadable/empty): {path}")
+                            ok = False
+                    except Exception as e:
+                        print(f"  [405] 无法读取CSV属性(Cannot stat CSV): {path} -> {e}")
+                        ok = False
+            except Exception as e:
+                print(f"  [405] 无法检查CSV(Cannot check CSV): {path} -> {e}")
+                ok = False
+
+        json_path = self.project_root / "output_json" / f"{data_folder}.json"
+        try:
+            if not json_path.exists():
+                print(f"  [404] JSON 不存在(Not found): {json_path}")
+                ok = False
+            else:
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    qa_pairs = data.get('qa_pairs', [])
+                    if not isinstance(qa_pairs, list) or len(qa_pairs) == 0:
+                        print(f"  [405] JSON qa_pairs 为空(Empty): {json_path}")
+                        ok = False
+                except Exception as e:
+                    print(f"  [405] JSON 无法解析(Parse error): {json_path} -> {e}")
+                    ok = False
+        except Exception as e:
+            print(f"  [405] 无法检查JSON(Cannot check JSON): {json_path} -> {e}")
+            ok = False
+
+        return ok
 
     def print_summary(self, results: list):
         """打印处理摘要"""
@@ -253,11 +333,12 @@ class BatchProcessor:
 def main():
     parser = argparse.ArgumentParser(description="批量处理数据文件夹，生成CSV和JSON文件")
     parser.add_argument("--data_root", default="data", help="数据根目录")
-    parser.add_argument("--parallel", type=int, default=1, help="并行处理数量")
+    # 并行已禁用，保留参数兼容但不生效
+    parser.add_argument("--parallel", type=int, default=1, help="(已忽略) 并行处理数量")
     
     args = parser.parse_args()
     
-    processor = BatchProcessor(args.data_root, args.parallel)
+    processor = BatchProcessor(args.data_root, 1)
     results = processor.process_all_folders()
     processor.print_summary(results)
 

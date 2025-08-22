@@ -94,15 +94,21 @@ def build_quiz(video_id: str, seed: int) -> List[Dict]:
     # 生成的json结构改为与 output_json/20250820-151238_quiz10.json 类似
     # 扁平化结构：直接返回题目列表（每题包含 video_id 与 video_path）
     flat_questions: List[Dict] = []
+    # 只有特定题型需要保留难度（其余题型移除该键）
+    difficulty_types = {"c_relative_direction", "c_route_plan"}
     for q in picked:
-        flat_questions.append({
+        item = {
             "video_id": video_id,
             "video_path": video_path,
             "question": q.get("question", ""),
             "answer": q.get("answer", ""),
-            "question_type": q.get("question_type", ""),
-            "difficulty": q.get("difficulty", "")
-        })
+            "question_type": q.get("question_type", "")
+        }
+        if str(q.get("question_type", "")) in difficulty_types:
+            diff_val = q.get("difficulty")
+            if diff_val not in (None, ""):
+                item["difficulty"] = diff_val
+        flat_questions.append(item)
     return flat_questions
 
 

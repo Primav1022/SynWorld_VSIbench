@@ -4,12 +4,14 @@ import os
 
 def get_data_folder_name():
     """
-    从output_csv目录中找到数据文件夹名称
+    优先使用环境变量 DEFAULT_DATA_SUBDIR；否则回退扫描 output_csv。
     """
+    env_subdir = os.environ.get('DEFAULT_DATA_SUBDIR')
+    if env_subdir:
+        return env_subdir
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     output_csv_root = os.path.join(project_root, "output_csv")
-    
     if os.path.exists(output_csv_root):
         for item in os.listdir(output_csv_root):
             item_path = os.path.join(output_csv_root, item)
